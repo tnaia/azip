@@ -63,17 +63,31 @@ int tree_len = 0;
 int roots[tree_size];
 int roots_len = 0;
 
-void print_code(int i);
+void output_code(int i);
 void print_7bit_char(char c);
 void print_encoding_tree();
+void output_bit(char bit);
+void print_code_stderr_only(int i);
 
 /* untested */
-void print_7bit_char(char c)
+void print_7bit_char_stderr_only(char c)
 {
-  int i=7;
-  while(i>0)
+  int i=6;
+  if(DEBUG)
+    while(i>=0)
+      {
+        fprintf(stderr,"%d", (c >> i)%2);
+        i--;
+      }
+}
+
+void output_7bit_char(char c)
+{
+  int i=6;
+  while(i>=0)
     {
-      printf("%d", (c >> i)%2);
+      if(DEBUG) fprintf(stderr,"%d", (c >> i)%2);
+      output_bit((c >> i)%2);
       i--;
     }
 }
@@ -82,14 +96,16 @@ void print_tree_rec(int i)
 {
   if(tree[i].left != -1)
     {
-      printf("0");
+      if(DEBUG) fprintf(stderr,"0");
+      output_bit(0);
       print_tree_rec(tree[i].left);
       print_tree_rec(tree[i].right);
     }
   else
     {
-      printf("1");
-      print_7bit_char(tree[i].character);
+      if(DEBUG) fprintf(stderr,"1");
+      output_bit(1);
+      output_7bit_char(tree[i].character);
     }
 }
 
@@ -97,16 +113,16 @@ void prefix_zero(int i)
 {
   if(DEBUG)
     {
-      printf("Prefixing code of length %d with  0: [", tree[i].code_len);
-      print_code(i);
-      printf("] --> [");
+      fprintf(stderr,"Prefixing code of length %d with  0: [", tree[i].code_len);
+      print_code_stderr_only(i);
+      fprintf(stderr,"] --> [");
     }
   tree[i].code_len++;
 
   if(DEBUG)
     {
-      print_code(i);
-      printf("]\n");
+      print_code_stderr_only(i);
+      fprintf(stderr,"]\n");
     }
   if(tree[i].left != -1) prefix_zero(tree[i].left);
   if(tree[i].right != -1) prefix_zero(tree[i].right);
@@ -118,9 +134,9 @@ void prefix_one(int i)
 
   if(DEBUG)
     {
-      printf("Prefixing code of length %d with  1: [", tree[i].code_len);
-      print_code(i);
-      printf("] --> [");
+      fprintf(stderr,"Prefixing code of length %d with  1: [", tree[i].code_len);
+      print_code_stderr_only(i);
+      fprintf(stderr,"] --> [");
     }
 
   j = max_code_len -1 -tree[i].code_len/8;
@@ -129,22 +145,22 @@ void prefix_one(int i)
 
   if(DEBUG)
     {
-      print_code(i);
-      printf("]\n");
+      print_code_stderr_only(i);
+      fprintf(stderr,"]\n");
     }
   if(tree[i].left != -1) prefix_one(tree[i].left);
   if(tree[i].right != -1) prefix_one(tree[i].right);
 }
 
-void print_code(int i)
+void print_code_stderr_only(int i)
 {
   int j, aux;
   j = max_code_len -1 -tree[i].code_len/8;
   aux = tree[i].code_len % 8;
   while(aux > 0)
     {
-      if(((tree[i].code[j] >>aux) % 2)  > 0) printf("1");
-      else printf("0");
+      if(((tree[i].code[j] >>aux) % 2)  > 0) fprintf(stderr,"1");
+      else fprintf(stderr,"0");
       aux--;
     }
 
@@ -153,8 +169,48 @@ void print_code(int i)
       aux = 8;
       while(aux > 0)
         {
-          if(((tree[i].code[j] >>aux) % 2)  > 0) printf("1");
-          else printf("0");
+          if(((tree[i].code[j] >>aux) % 2)  > 0) fprintf(stderr,"1");
+          else fprintf(stderr,"0");
+          aux--;
+        }
+    }
+}
+
+void output_code(int i)
+{
+  int j, aux;
+  j = max_code_len -1 -tree[i].code_len/8;
+  aux = tree[i].code_len % 8;
+  while(aux > 0)
+    {
+      if(((tree[i].code[j] >>aux) % 2)  > 0) 
+        {
+          if(DEBUG) fprintf(stderr,"1");
+          output_bit(1);
+        }
+      else 
+        {
+          if(DEBUG) fprintf(stderr,"0");
+          output_bit(0);
+        }
+      aux--;
+    }
+
+  while(++j < max_code_len)
+    {
+      aux = 8;
+      while(aux > 0)
+        {
+          if(((tree[i].code[j] >>aux) % 2)  > 0) 
+            {
+              if(DEBUG) fprintf(stderr,"1");
+              output_bit(1);
+            }
+          else 
+            {
+              if(DEBUG) fprintf(stderr,"0");
+              output_bit(0);
+            }
           aux--;
         }
     }
@@ -162,7 +218,7 @@ void print_code(int i)
 /* Prints tree rooted at i */
 void print_rec(int i)
 {
-  printf("(");
+  fprintf(stderr,"(");
   if(tree[i].left != -1) {
     print_rec(tree[i].left);
   }
@@ -170,45 +226,97 @@ void print_rec(int i)
     print_rec(tree[i].right);
   }
   if((tree[i].left == tree[i].right) && tree[i].left == -1) {
-    printf("%s[", symbol_name[tree[i].character]);
-    print_7bit_char(tree[i].character);
-    printf("-->");
-    print_code(i);
-    printf("]/%lu", tree[i].w);
+    fprintf(stderr,"%s[", symbol_name[tree[i].character]);
+    print_7bit_char_stderr_only(tree[i].character);
+    fprintf(stderr,"-->");
+    print_code_stderr_only(i);
+    fprintf(stderr,"]/%lu", tree[i].w);
   } else
-    printf("/%lu", tree[i].w);
-  printf(")");fflush(stdout);
+    fprintf(stderr,"/%lu", tree[i].w);
+  fprintf(stderr,")");fflush(stdout);
 }
 
 void print_tree()
 {
   int i = 0;
-  printf("The tree as it stands:\n");
+  fprintf(stderr,"The tree as it stands:\n");
   while(i < roots_len)
     {
       print_rec(roots[i++]);
     }
-  printf("\n");
+  fprintf(stderr,"\n");
 }
 
 void print_tree_linear() 
 {
   int i = 0;
-  printf("\n"
+  fprintf(stderr,"\n"
          "Node  lft  rgt           weight  char\n"
          "----  ---  ---  ---------------  -------------------------------\n");
   while(i < tree_len)
     {
       
-      printf(" %3d  "
+      fprintf(stderr," %3d  "
              "%3d  "
              "%3d  "
              "%15lu  ",
              i, tree[i].left, tree[i].right, tree[i].w);
       if((tree[i].left == tree[i].right) && tree[i].left == -1)
-        printf("%s\n", symbol_name[tree[i].character]);
-      else printf("\n");
+        fprintf(stderr,"%s\n", symbol_name[tree[i].character]);
+      else fprintf(stderr,"\n");
       i++;
+    }
+}
+
+FILE* output;
+unsigned char out_buffer[buf_size +max_code_len +1];
+unsigned long int next_bit = 0;
+
+void print_out_buffer()
+{
+  int j = 0;
+  fprintf(stderr, "[out buffer: ");
+  while(j < buf_size * 8)
+    {
+      if(j == next_bit) fprintf(stderr, ".");
+      if(((out_buffer[j/8] >> (7-(j%8))) % 2) == 1) fprintf(stderr, "1");
+      else fprintf(stderr, "0");
+      j++;
+    }
+  if(j == next_bit)
+    fprintf(stderr,".] next_bit = %lu\n", next_bit);
+  else
+    fprintf(stderr,"] next_bit = %lu\n", next_bit);
+}
+
+void output_bit(char bit)
+{
+  char aux;
+
+  aux = next_bit % 8;
+  /* we reset when we start a new byte */      
+  if(aux == 0) 
+    {
+      if(DEBUG) fprintf(stderr, "[zeroing next byte]");
+      out_buffer[next_bit/8] = 0;
+    }
+  if(bit) out_buffer[next_bit/8] += 1<<(7-aux);
+
+  next_bit++;
+
+  if(DEBUG) print_out_buffer();
+
+  if(next_bit == 8 * buf_size) 
+    {
+      /* Flush output */
+      if(fwrite(out_buffer, 1, buf_size, output) != buf_size)
+        {
+          fprintf(stderr, "! Cannot output!\n");
+          exit(1);
+        }
+
+      next_bit = 0;
+      if(DEBUG) fprintf(stderr,"[out_buffer flushed]\n");
     }
 }
 
@@ -221,8 +329,8 @@ int main(int argc, char **argv)
   long unsigned int combined_weight;
   long unsigned int i, j, max, aux;
   size_t llen;
-  printf(banner);
-  printf("Alphabet size is %d.\n", alphabet_size);
+  fprintf(stderr,banner);
+  fprintf(stderr,"Alphabet size is %d.\n", alphabet_size);
   /* Open file */
   if(argc != 2)
     {
@@ -242,7 +350,7 @@ int main(int argc, char **argv)
     freq[i++] = 0;
   
   /* First pass */
-  printf("First pass...");
+  fprintf(stderr,"First pass...");
 
   while((llen = fread(in_buffer,
                       1,
@@ -251,14 +359,14 @@ int main(int argc, char **argv)
     {
       if(DEBUG)
         {
-          printf("\nllen = %d\n", (int)llen);fflush(stdout);
+          fprintf(stderr,"\nllen = %d\n", (int)llen);fflush(stdout);
         }
       i = 0;
       while(i < (int) llen)
         {
           if(DEBUG)
             {
-              printf("%c", in_buffer[i]);fflush(stdout);
+              fprintf(stderr,"%c", in_buffer[i]);fflush(stdout);
             }
           freq[in_buffer[i]] +=1;
           i++;
@@ -267,9 +375,9 @@ int main(int argc, char **argv)
     }
   
   fclose(input);
-  printf("[ DONE ]\n");  
+  fprintf(stderr,"[ DONE ]\n");  
   i = 0;
-  printf("\n"
+  fprintf(stderr,"\n"
          " char       frequency  description\n"
          "-----  --------------  -------------------------------\n");
   while(i < alphabet_size)
@@ -277,13 +385,13 @@ int main(int argc, char **argv)
       if(freq[i] > 0)
         {
           chars_seen++;
-          printf("%4lu  %15lu  %s\n", i, freq[i], symbol_name[i]);
+          fprintf(stderr,"%4lu  %15lu  %s\n", i, freq[i], symbol_name[i]);
         }
       i++;
     }
 
   /* Print file statistics */
-  printf("The file has %lu chars (saw %lu distinct).\n", chars_read, chars_seen);
+  fprintf(stderr,"The file has %lu chars (saw %lu distinct).\n", chars_read, chars_seen);
   /* Initialize tree */
   i = 0;
   while(i < tree_size)
@@ -338,11 +446,11 @@ int main(int argc, char **argv)
     {
       if(DEBUG)
         {
-          printf("tree_len = %d, roots_len = %d, roots = [%d", tree_len,roots_len,roots[0]);
+          fprintf(stderr,"tree_len = %d, roots_len = %d, roots = [%d", tree_len,roots_len,roots[0]);
           i = 1;
           while(i < roots_len)
-            printf(", %d", roots[i++]);
-          printf("]\n");
+            fprintf(stderr,", %d", roots[i++]);
+          fprintf(stderr,"]\n");
           
           print_tree_linear();
           print_tree();
@@ -382,9 +490,11 @@ int main(int argc, char **argv)
       roots[i] = aux;
     }
 
-
-  print_tree_linear();
-  print_tree();
+  if(DEBUG)
+    {
+      print_tree_linear();
+      print_tree();
+    }
 
   /* Build coding table */
   i = 0;
@@ -394,7 +504,14 @@ int main(int argc, char **argv)
       i++;
     }
 
-  /* Second pass */
+  /* Second pass and output */
+
+  output = stdout;
+
+  i = 0;
+  while(i < buf_size)
+    out_buffer[i++] = 0xff;
+
   print_tree_rec(roots[0]);
   if((input = fopen(argv[1],"r")) == NULL)
     {
@@ -405,15 +522,28 @@ int main(int argc, char **argv)
   while((llen = fread(in_buffer,
                       1,
                       buf_size,
-                      input)) != 0)
+                      input)) > 0)
     {
       i = 0;
       while(i < (int) llen)
         {
-          print_code(encoding[in_buffer[i]]);
+          output_code(encoding[in_buffer[i]]);
           i++;
         }
     }
+
+  /* flush output buffer */
+
+  /* Ensure at least one padding bit */
+  if(next_bit % 8 == 0) out_buffer[next_bit/8] = 0;
+
+  if(fwrite(out_buffer, 1, next_bit/8 +1, output) != next_bit/8 + 1)
+    {
+      fprintf(stderr, "! Cannot output!\n");
+      exit(1);
+    }
+  if(DEBUG) fprintf(stderr,"[out_buffer flushed]");
+         
   fclose(input);  
   return 0;
 }
