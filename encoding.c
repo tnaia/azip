@@ -24,16 +24,18 @@
 #include<stdio.h>
 #include<stdlib.h>
 
-
-#define banner "This is azip, version 160328.\n"
+#define DEBUG 0
+#define banner "This is azip, version 160329.\n"
 #define buf_size (1024 * 1024 +1)
 
 #define alphabet_size (1<<7)
-#define tree_size (1<<7)
+#define max_code_len (alphabet_size/8)
+#define tree_size (2*alphabet_size)
 long unsigned int freq[alphabet_size];
+int encoding[alphabet_size];
 
 char * symbol_name[alphabet_size] = { 
-  "nul","soh - start of heading","stx - start of text","etx - end of text","eot - end of transmission","enq - enquiry","ack - acknowledgement","bel - bell","bs - backspace","ht - horizontal tab",
+"nul","soh - start of heading","stx - start of text","etx - end of text","eot - end of transmission","enq - enquiry","ack - acknowledgement","bel - bell","bs - backspace","ht - horizontal tab",
   "nl - line feed/new line","vt - vertical tab","np - form feed/new page","cr - carriage return","so - shift out","si - shift in","dle - data link escape","dc1 - device control 1","dc2 - device control -2","dc3 - device control 3",
   "dc4 - device control 4","nak - negative acknowledgement","syn - synchronous idle","etb - end of transmission block","can - cancel","em - end of medium","sub - substitute","esc - escape","fs - file separator","gs - group separator",
 "rs - record separator","us - unit separator","sp - space","!","\"","#","$","%","&","'",
@@ -49,19 +51,114 @@ char * symbol_name[alphabet_size] = {
 
 struct node {
   char character;
+  char code[max_code_len];
+  int code_len;
   long unsigned int w;
   int left, right;
 } tree[tree_size];
+
+
 
 int tree_len = 0;
 int roots[tree_size];
 int roots_len = 0;
 
-void sort_roots() 
+void print_code(int i);
+void print_7bit_char(char c);
+void print_encoding_tree();
+
+/* untested */
+void print_7bit_char(char c)
 {
-  return;
+  int i=7;
+  while(i>0)
+    {
+      printf("%d", (c >> i)%2);
+      i--;
+    }
 }
 
+void print_tree_rec(int i)
+{
+  if(tree[i].left != -1)
+    {
+      printf("0");
+      print_tree_rec(tree[i].left);
+      print_tree_rec(tree[i].right);
+    }
+  else
+    {
+      printf("1");
+      print_7bit_char(tree[i].character);
+    }
+}
+
+void prefix_zero(int i)
+{
+  if(DEBUG)
+    {
+      printf("Prefixing code of length %d with  0: [", tree[i].code_len);
+      print_code(i);
+      printf("] --> [");
+    }
+  tree[i].code_len++;
+
+  if(DEBUG)
+    {
+      print_code(i);
+      printf("]\n");
+    }
+  if(tree[i].left != -1) prefix_zero(tree[i].left);
+  if(tree[i].right != -1) prefix_zero(tree[i].right);
+}
+
+void prefix_one(int i)
+{
+  int j= 0;
+
+  if(DEBUG)
+    {
+      printf("Prefixing code of length %d with  1: [", tree[i].code_len);
+      print_code(i);
+      printf("] --> [");
+    }
+
+  j = max_code_len -1 -tree[i].code_len/8;
+  tree[i].code[j] = tree[i].code[j] + (1<<((tree[i].code_len % 8) + 1));
+  tree[i].code_len++;
+
+  if(DEBUG)
+    {
+      print_code(i);
+      printf("]\n");
+    }
+  if(tree[i].left != -1) prefix_one(tree[i].left);
+  if(tree[i].right != -1) prefix_one(tree[i].right);
+}
+
+void print_code(int i)
+{
+  int j, aux;
+  j = max_code_len -1 -tree[i].code_len/8;
+  aux = tree[i].code_len % 8;
+  while(aux > 0)
+    {
+      if(((tree[i].code[j] >>aux) % 2)  > 0) printf("1");
+      else printf("0");
+      aux--;
+    }
+
+  while(++j < max_code_len)
+    {
+      aux = 8;
+      while(aux > 0)
+        {
+          if(((tree[i].code[j] >>aux) % 2)  > 0) printf("1");
+          else printf("0");
+          aux--;
+        }
+    }
+}
 /* Prints tree rooted at i */
 void print_rec(int i)
 {
@@ -73,7 +170,11 @@ void print_rec(int i)
     print_rec(tree[i].right);
   }
   if((tree[i].left == tree[i].right) && tree[i].left == -1) {
-    printf("%s/%lu", symbol_name[tree[i].character], tree[i].w);
+    printf("%s[", symbol_name[tree[i].character]);
+    print_7bit_char(tree[i].character);
+    printf("-->");
+    print_code(i);
+    printf("]/%lu", tree[i].w);
   } else
     printf("/%lu", tree[i].w);
   printf(")");fflush(stdout);
@@ -93,30 +194,35 @@ void print_tree()
 void print_tree_linear() 
 {
   int i = 0;
+  printf("\n"
+         "Node  lft  rgt           weight  char\n"
+         "----  ---  ---  ---------------  -------------------------------\n");
   while(i < tree_len)
     {
       
-      printf("----tree: %d\n"
-             "    left: %d\n"
-             "   right: %d\n"
-             "  weight: %lu\n",
+      printf(" %3d  "
+             "%3d  "
+             "%3d  "
+             "%15lu  ",
              i, tree[i].left, tree[i].right, tree[i].w);
       if((tree[i].left == tree[i].right) && tree[i].left == -1)
-        printf("    char: %s\n", symbol_name[tree[i].character]);
+        printf("%s\n", symbol_name[tree[i].character]);
+      else printf("\n");
       i++;
     }
 }
+
 
 int main(int argc, char **argv)
 {
   FILE *input;
   char in_buffer[buf_size +1];
-  long unsigned int chars_read = 0;
+  long unsigned int chars_read = 0, chars_seen = 0;
   long unsigned int combined_weight;
   long unsigned int i, j, max, aux;
   size_t llen;
   printf(banner);
-  printf("Alphabet size is %d\n", alphabet_size);
+  printf("Alphabet size is %d.\n", alphabet_size);
   /* Open file */
   if(argc != 2)
     {
@@ -126,7 +232,7 @@ int main(int argc, char **argv)
 
   if((input = fopen(argv[1],"r")) == NULL)
     {
-      fprintf(stderr, "  Usage: azip <input file>.\n");
+      fprintf(stderr, "! I cannot open your file.\n");
       exit(1);
     }
   
@@ -136,18 +242,24 @@ int main(int argc, char **argv)
     freq[i++] = 0;
   
   /* First pass */
-  printf("First pass.\n");
+  printf("First pass...");
 
   while((llen = fread(in_buffer,
                       1,
-                      60,
+                      buf_size,
                       input)) != 0)
     {
-      printf("\nllen = %d\n", (int)llen);fflush(stdout);
+      if(DEBUG)
+        {
+          printf("\nllen = %d\n", (int)llen);fflush(stdout);
+        }
       i = 0;
       while(i < (int) llen)
         {
-          printf("%c", in_buffer[i]);fflush(stdout);
+          if(DEBUG)
+            {
+              printf("%c", in_buffer[i]);fflush(stdout);
+            }
           freq[in_buffer[i]] +=1;
           i++;
           chars_read++;
@@ -155,27 +267,36 @@ int main(int argc, char **argv)
     }
   
   fclose(input);
-  printf("\nEnd of first pass.\n");  
+  printf("[ DONE ]\n");  
   i = 0;
-  printf("Frequencies\n"
-         "===========\n");
+  printf("\n"
+         " char       frequency  description\n"
+         "-----  --------------  -------------------------------\n");
   while(i < alphabet_size)
     {
       if(freq[i] > 0)
         {
-          printf("%4lu --> %lu (%s)\n", i, freq[i], symbol_name[i]);
+          chars_seen++;
+          printf("%4lu  %15lu  %s\n", i, freq[i], symbol_name[i]);
         }
       i++;
     }
 
   /* Print file statistics */
-  printf("Read %lu chars.\n", chars_read);
-  
+  printf("The file has %lu chars (saw %lu distinct).\n", chars_read, chars_seen);
   /* Initialize tree */
   i = 0;
   while(i < tree_size)
     {
       tree[i].left = tree[i].right = -1;
+      j = 0;
+      while(j < max_code_len)
+        {
+          tree[i].code[j] = 0;
+          j++;
+        }
+      tree[i].code_len = 0;
+      
       i++;
     }
 
@@ -212,18 +333,25 @@ int main(int argc, char **argv)
       i++;
     }
 
+
   while(roots_len > 1)
     {
-      printf("tree_len = %d, roots_len = %d, roots = [%d", tree_len,roots_len,roots[0]);
-      i = 1;
-      while(i < roots_len)
-        printf(", %d", roots[i++]);
-      printf("]\n");
-
-      print_tree_linear();
-      print_tree();
+      if(DEBUG)
+        {
+          printf("tree_len = %d, roots_len = %d, roots = [%d", tree_len,roots_len,roots[0]);
+          i = 1;
+          while(i < roots_len)
+            printf(", %d", roots[i++]);
+          printf("]\n");
+          
+          print_tree_linear();
+          print_tree();
+        }
 
       /* join roots of smallest w */
+      prefix_zero(roots[roots_len -2]);
+      prefix_one (roots[roots_len -1]);
+
       tree[tree_len].left = roots[roots_len -2];
       tree[tree_len].right = roots[roots_len -1];
       combined_weight = tree[roots[roots_len -2]].w + tree[roots[roots_len -1]].w;
@@ -242,6 +370,8 @@ int main(int argc, char **argv)
           else i = aux;
         }
 
+
+
       aux = roots[roots_len -1];
       j = roots_len -1;
       while(j > i)
@@ -252,11 +382,38 @@ int main(int argc, char **argv)
       roots[i] = aux;
     }
 
-      print_tree_linear();
-      print_tree();
-      sort_roots();
+
+  print_tree_linear();
+  print_tree();
+
+  /* Build coding table */
+  i = 0;
+  while(i < chars_seen)
+    {
+      encoding[tree[i].character] = i;
+      i++;
+    }
 
   /* Second pass */
+  print_tree_rec(roots[0]);
+  if((input = fopen(argv[1],"r")) == NULL)
+    {
+      fprintf(stderr, "! I cannot not open your file (on second pass).\n");
+      exit(1);
+    }
 
+  while((llen = fread(in_buffer,
+                      1,
+                      buf_size,
+                      input)) != 0)
+    {
+      i = 0;
+      while(i < (int) llen)
+        {
+          print_code(encoding[in_buffer[i]]);
+          i++;
+        }
+    }
+  fclose(input);  
   return 0;
 }
