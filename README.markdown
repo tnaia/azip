@@ -7,6 +7,13 @@ symbols.
 
 The motivation is compressing fastq and fasta files.
 
+*Update* Some testing (files of about 5 Gb): compression
+is about twice as fast, but the resulting file is twice
+as large. Since it takes less than 20 minutes to compress
+such a file on most curreny (circa 2015) computers,
+it is probably not worth pursuing this project. Phew!
+
+
 # License
 
   This program is free software: you can redistribute it and/or modify
