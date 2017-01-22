@@ -426,21 +426,22 @@ int main(int argc, char **argv)
 
   /* Pre-sort roots */
   i = 0;
-  while(i < roots_len -1)
-    {
-      j = i+1;
-      max = i;
-      while(j < roots_len)
-        {
-          if(tree[roots[j]].w > tree[roots[max]].w) max = j;
-          j++;
-        }
-      aux = roots[i];
-      roots[i] = roots[max];
-      roots[max] = aux;
-      i++;
-    }
-
+  if (roots_len != 0) {
+    while(i < roots_len -1)
+      {
+        j = i+1;
+        max = i;
+        while(j < roots_len)
+          {
+            if(tree[roots[j]].w > tree[roots[max]].w) max = j;
+            j++;
+          }
+        aux = roots[i];
+        roots[i] = roots[max];
+        roots[max] = aux;
+        i++;
+      }
+  }
 
   while(roots_len > 1)
     {
