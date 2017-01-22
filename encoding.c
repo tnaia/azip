@@ -23,6 +23,7 @@
  */
 #include<stdio.h>
 #include<stdlib.h>
+#include<assert.h>
 
 #define DEBUG 0
 #define banner "This is azip, version 160329.\n"
@@ -368,6 +369,8 @@ int main(int argc, char **argv)
             {
               fprintf(stderr,"%c", in_buffer[i]);fflush(stdout);
             }
+          /* Only support 7-bit ASCII */
+          assert(in_buffer[i] >= 0);
           freq[in_buffer[i]] +=1;
           i++;
           chars_read++;
